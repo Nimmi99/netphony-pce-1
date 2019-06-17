@@ -3,9 +3,21 @@ package es.tid.pce.client;
 
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import es.tid.pce.pcep.objects.ExcludeRouteObject;
+import es.tid.pce.pcep.objects.IncludeRouteObject;
+import es.tid.pce.pcep.objects.ReqAdapCap;
+import es.tid.pce.pcep.objects.subobjects.IPv4PrefixXROSubobject;
+import es.tid.pce.pcep.objects.subobjects.UnnumberIfIDXROSubobject;
+import es.tid.pce.pcep.objects.subobjects.XROSubobject;
+import es.tid.rsvp.objects.subobjects.EROSubobject;
+import es.tid.rsvp.objects.subobjects.IPv4prefixEROSubobject;
+import es.tid.rsvp.objects.subobjects.UnnumberIfIDEROSubobject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
@@ -65,8 +77,27 @@ public class QuickClientObj {
 		PCEPSessionsInformation pcepSessionManager=new PCEPSessionsInformation();
 		this.PCEsession = new PCCPCEPSession(ip, port,false,pcepSessionManager);
 	}
-	
-	public static CommandLine getLineOptions(String[] args) throws ParseException{
+
+    public static int convertIpToInt(String ipStr) {
+        Inet4Address ip = null;
+        try {
+            ip = (Inet4Address) Inet4Address.getByName(ipStr);
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
+        int resultIP = 0;
+        if (ip != null) {
+            for (byte b : ip.getAddress()) {
+                resultIP = resultIP << 8 | (b & 0xFF);
+            }
+        }
+        return resultIP;
+    }
+
+
+
+
+    public static CommandLine getLineOptions(String[] args) throws ParseException{
 		Option gOpt = new Option("g", "Generalized end points");
 		Option eroOpt = new Option("ero", "Explicit Route Object");
 		Option iniOpt= new Option("ini", "Send init message");
@@ -122,7 +153,7 @@ public class QuickClientObj {
 		return pr;
 	}
 
-	public Request createReqMessage(String src, String dst, CommandLine optArgs){
+	public Request createReqMessage(String src, String dst, CommandLine optArgs, int reqIndex){
 
 		String src_ip="";;
 		long src_if=0;
@@ -167,6 +198,7 @@ public class QuickClientObj {
 		if(optArgs.hasOption("g")){
 			gen=true;
 			GeneralizedEndPoints ep=new GeneralizedEndPoints();
+			ep.setPbit(true);
 			req.setEndPoints(ep);
 			P2PEndpoints p2pEndpoints = new P2PEndpoints();	
 			EndPoint ep_s =new EndPoint();
@@ -233,7 +265,8 @@ public class QuickClientObj {
 
 			
 		}else{
-			EndPointsIPv4 ep=new EndPointsIPv4();				
+			EndPointsIPv4 ep=new EndPointsIPv4();
+            ep.setPbit(true);
 			req.setEndPoints(ep);
 			//String src_ip= "1.1.1.1";
 			Inet4Address ipp;
@@ -270,11 +303,13 @@ public class QuickClientObj {
 		
 		float bw;
 		int m;
-		if (optArgs.hasOption("rbw")){		
+		if (optArgs.hasOption("rbw"+reqIndex)){
 			
-			bw=Float.parseFloat(optArgs.getOptionValue("rbw"));	
+			bw=Float.parseFloat(optArgs.getOptionValue("rbw"+reqIndex));
 			BandwidthRequested gw = new BandwidthRequested();
-			gw.setBw(bw);
+			 /*convert gbps to bytes/second*/
+			float bbw = ((bw*1000)/8);
+			gw.setBw(bbw);
 			req.setBandwidth(gw);
 			
 			
@@ -282,19 +317,207 @@ public class QuickClientObj {
 		}
 		else if (optArgs.hasOption("rgbw")){		
 			
-			m=Integer.parseInt(optArgs.getOptionValue("rgbw"));	
+			m=Integer.parseInt(optArgs.getOptionValue("rgbw"));
 			BandwidthRequestedGeneralizedBandwidth gw = new BandwidthRequestedGeneralizedBandwidth();
 			GeneralizedBandwidthSSON gwsson = new GeneralizedBandwidthSSON();
 			gwsson.setM(m);
 			gw.setGeneralizedBandwidth(gwsson);
 			req.setBandwidth(gw);
-			
-			
-		}	
-		
-		
-		
-		return req;
+
+		}
+		String iroIp="";
+		String iroIf= "";
+		long iroPort;
+
+        IncludeRouteObject iroObj = new IncludeRouteObject();
+        LinkedList<EROSubobject> eroSubobjectList = new  LinkedList<EROSubobject>();
+
+        /*Iro subobject for link*/
+		if (optArgs.hasOption("iro"+ reqIndex)) {
+            String iroField = optArgs.getOptionValue("iro" + reqIndex);
+            iroObj.setPbit(true);
+            String sip;
+            Inet4Address ipFormat;
+            int i;
+            String iroLink = null;
+
+
+            if (iroField.contains(",")) {
+
+                String[] parts = iroField.split(",");
+
+                for(i = 0; i <parts.length; i++) {
+                    iroLink = parts[i];
+
+
+                    if (iroLink.contains(":")) {
+                        String[] field = iroLink.split(":");
+                        iroIp = field[0];
+                        iroIf = field[1];
+
+                        //iroIf = Long.valueOf(field[1]).longValue();
+                        iroPort = convertIpToInt(iroIf);
+
+                        if (iroPort != 0) {
+                            UnnumberIfIDEROSubobject unnumberSubobject =
+                                    new UnnumberIfIDEROSubobject();
+                            try {
+                                //req.setIRO(iroObj);
+                                ipFormat = (Inet4Address) Inet4Address.getByName(iroIp);
+                                unnumberSubobject.setRouterID(ipFormat);
+                                unnumberSubobject.setInterfaceID(iroPort);
+                                unnumberSubobject.setType(4);
+                                //iroObj.addIROSubobject(unnumberSubobject);
+                                eroSubobjectList.add(unnumberSubobject);
+
+                            } catch (UnknownHostException e) {
+                                // TODO Auto-generated catch block
+                                e.printStackTrace();
+                            }
+                        }
+
+                    }
+                }
+
+
+            }
+            iroObj.setIROList(eroSubobjectList);
+            req.setIRO(iroObj);
+        }
+        /*Iro subobject for node*/
+        if (optArgs.hasOption("iron"+reqIndex)){
+            String iroField = optArgs.getOptionValue("iron"+reqIndex);
+            iroObj.setPbit(true);
+
+            Inet4Address ipFormat;
+            int i;
+            String iroNode = null;
+
+            if (iroField.contains(",")) {
+
+                String[] parts = iroField.split(",");
+
+                for(i = 0; i <parts.length; i++) {
+                    iroNode = parts[i];
+
+                    IPv4prefixEROSubobject iPv4Subobject = new IPv4prefixEROSubobject();
+
+
+                    try {
+                        ipFormat = (Inet4Address) Inet4Address.getByName(iroNode);
+                        iPv4Subobject.setIpv4address(ipFormat);
+                        iPv4Subobject.setType(1);
+                        eroSubobjectList.add(iPv4Subobject);
+
+                        //iroObj.setIROList(IPv4prefixEROSubobject);
+                    } catch (UnknownHostException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
+                }
+
+            }
+
+            iroObj.setIROList(eroSubobjectList);
+			req.setIRO(iroObj);
+		}
+        String xroIp= "";
+        String xroIf= "";
+        long xroPort;
+
+        ExcludeRouteObject xroObj = new ExcludeRouteObject();
+        LinkedList<XROSubobject> xroSubobjectList = new LinkedList<XROSubobject>();
+
+
+        if (optArgs.hasOption("xro"+reqIndex)) {
+            String xroField = optArgs.getOptionValue("xro"+reqIndex);
+            xroObj.setPbit(true);
+
+            Inet4Address ipFormat;
+            int i;
+            String xroLink = null;
+
+
+            if (xroField.contains(",")) {
+
+                String[] parts = xroField.split(",");
+
+                for(i = 0; i <parts.length; i++) {
+                    xroLink = parts[i];
+
+
+                    if (xroLink.contains(":")) {
+                        String[] field = xroLink.split(":");
+                        xroIp = field[0];
+                        xroIf = field[1];
+
+                        //iroIf = Long.valueOf(field[1]).longValue();
+                        xroPort = convertIpToInt(xroIf);
+
+                        if (xroPort != 0) {
+                            UnnumberIfIDXROSubobject unnumberSubobject =
+                                    new UnnumberIfIDXROSubobject();
+                            try {
+                                //req.setXro(xroObj);
+                                ipFormat = (Inet4Address) Inet4Address.getByName(xroIp);
+                                unnumberSubobject.setRouterID(ipFormat);
+                                unnumberSubobject.setInterfaceID(xroPort);
+                                unnumberSubobject.setType(4);
+                                //iroObj.addIROSubobject(unnumberSubobject);
+                                xroSubobjectList.add(unnumberSubobject);
+
+                            } catch (UnknownHostException e) {
+                                // TODO Auto-generated catch block
+                                e.printStackTrace();
+                            }
+                        }
+
+                    }
+                }
+
+
+            }
+            xroObj.setXROSubobjectList(xroSubobjectList);
+            req.setXro(xroObj);
+        }
+        if (optArgs.hasOption("xron"+reqIndex)){
+            String xroField = optArgs.getOptionValue("xron"+reqIndex);
+            xroObj.setPbit(true);
+
+            Inet4Address ipFormat;
+            int i;
+            String xroNode = null;
+
+            if (xroField.contains(",")) {
+
+                String[] parts = xroField.split(",");
+
+                for(i = 0; i <parts.length; i++) {
+                    xroNode = parts[i];
+
+                    IPv4PrefixXROSubobject iPv4Subobject = new IPv4PrefixXROSubobject();
+
+                    try {
+                        ipFormat = (Inet4Address) Inet4Address.getByName(xroNode);
+                        iPv4Subobject.setIpv4address(ipFormat);
+                        iPv4Subobject.setType(1);
+                        xroSubobjectList.add(iPv4Subobject);
+
+                        //iroObj.setIROList(IPv4prefixEROSubobject);
+                    } catch (UnknownHostException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
+                }
+
+            }
+
+            xroObj.setXROSubobjectList(xroSubobjectList);
+            req.setXro(xroObj);
+        }
+
+
+        return req;
 	}
 
 	public PCEPInitiate createIniMessage(String src, String dst, CommandLine optArgs, LinkedList<PCEPMessage> messageList){
@@ -505,9 +728,8 @@ public class QuickClientObj {
 			gwsson.setM(m);
 			gw.setGeneralizedBandwidth(gwsson);
 			lsp_ini.setBandwidth(gw);
-			
-			
-			
+
+
 			
 		}
 		
