@@ -77,23 +77,39 @@ At this step, there will be a librocksaw.so which you will need to copy to a dir
 
 ##QuickClient
 
+##Extended Netphony simulator to handle multiple requests including Multiple request lists, including XRO,IRO,Svec
+
 This is a command line tool that acts as PCC and sends PCEP messages to a PCE. Current version is able to send Path Computation Requests and Initiate messages. The use is as follows:
 
 ```
 usage: java -jar PCC-jar-with-dependencies.jar <host> <port> <src> <dst> [options]
- -ero            Explicit Route Object
- -g              Generalized end points
- -ini            Send init message
- -li <value>     local interface
- -of <value>     set of value
- -rgbw <value>   set rgbw value
+ -ero               Explicit Route Object
+ -g                 Generalized end points
+ -ini               Send init message
+ -iro1 <value>      set of iro1
+ -iro2 <value>      set of iro2
+ -iron1 <value>     set of iron1
+ -iron2 <value>     set of iron2
+ -ldiv <value>      set of ldiv
+ -li <value>        local interface
+ -ndiv <value>      set of ndiv
+ -of <value>        set of value
+ -rbw1 <value>      set rbw1 value
+ -rbw2 <value>      set rbw2 value
+ -rgbw <value>      set rgbw value
+ -srlgdiv <value>   set of srlgdiv
+ -xro1 <value>      set of xro1
+ -xro2 <value>      set of xro2
+ -xron1 <value>     set of xron1
+ -xron2 <value>     set of xron2
  ```
 
 To generate the auto-executable PCC-jar-with-dependencies.jar run bellow command:
 ```
 mvn package -P generate-autojar-PCC
 ```
- 
+
+
 ##Acknowledgements 
 
 The software has been developed by Telefonica I+D Core & Transport Team, led by Juan Pedro Fernandez Palacios, in internal innovation projects and through several EU funded research proyects, which continuously added functionality. The core of of the PCE was developed in the PhD thesis of Oscar Gonzalez de Dios. The Core & Transport Team group of Telefonica working with the PCE is formed by Victor Lopez, Oscar Gonzalez de Dios, Felipe Jiménez, Luis Miguel Contreras.   
