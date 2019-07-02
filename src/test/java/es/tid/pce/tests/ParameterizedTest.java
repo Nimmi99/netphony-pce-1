@@ -92,7 +92,7 @@ public class ParameterizedTest {
     		Logger log =LoggerFactory.getLogger("PCCClient");
 			QuickClientObj qcObj = new QuickClientObj(log, msgSend[0], Integer.valueOf(msgSend[1]).intValue());
 			qcObj.start();	
-			Request req = qcObj.createReqMessage(msgSend[2],msgSend[3], optReq);
+			Request req = qcObj.createReqMessage(msgSend[2],msgSend[3], optReq,1);
 			PCEPRequest p_r = new PCEPRequest();
 			p_r.addRequest(req);
 			LinkedList<PCEPMessage> messageList=new LinkedList<PCEPMessage>();

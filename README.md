@@ -83,6 +83,7 @@ This is a command line tool that acts as PCC and sends PCEP messages to a PCE. C
 
 ```
 usage: java -jar PCC-jar-with-dependencies.jar <host> <port> <src> <dst> [options]
+ -adminGroup <value>   set of adminGroup
  -ero               Explicit Route Object
  -g                 Generalized end points
  -ini               Send init message
